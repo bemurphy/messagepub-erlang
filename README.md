@@ -6,10 +6,11 @@ It is very easy to use:
 
 2) Once you've signed up, get your API key by going to your <em>Account Settings</em> at messagepub.com.
 
-3) Compile messagepub.erl: 
+3) Compile messagepub.erl.  Don't forget to rr("messagepub.hrl") for records if in shell.
 
 <pre>
 c(messagepub).
+rr("messagepub.hrl").
 </pre>
 
 4) Start the gen_server with your API KEY: 
@@ -17,14 +18,21 @@ c(messagepub).
 <pre>
 messagepub:start_link("YOUR API KEY").
 </pre>
-  
-5) Send messages using the send method. It takes three arguments: the _channel_ (aim, twitter, email, gchat, phone, sms), the _address_, and the _message_. See examples below:
+
+5) Build a list of recipients you wish to send to.  Order of recipients is used as the position in messagepub.
 
 <pre>
-messagepub:send("email","joe@example.com", "hello joe").
-messagepub:send("twitter", "the_real_shaq", "hi shaq!").
-messagepub:send("gchat", "example@gmail.com", "Hello friend").
-messagepub:send("aim", "username", "Saying hi from erlang").
-messagepub:send("sms", "1234567890", "Hi my SMS friend").
-messagepub:send("phone", "1234567890", "Hello on the phone").
+Recipients = [messagepub:email_recipient("joe@gmail.com"), messagepub:sms_recipient("123456789")].
 </pre>
+
+Available helpers for building recipients are `twitter_recipient/1, gchat_recipient/1, aim_recipient/1, email_recipient/1, sms_recipient/1, phone_recipient/1`.
+
+6) Build and send your notification:
+
+<pre>
+Notification = messagepub:new_notification("Your message here!", Recipients).
+messagepub:create(Notification).
+</pre>
+
+Supported calls to api through: `create/1, view/0, get_notification/1, cancel/1, replies/0`
+
