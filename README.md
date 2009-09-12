@@ -22,7 +22,7 @@ messagepub:start_link("YOUR API KEY").
 5) Build a list of recipients you wish to send to.  Order of recipients is used as the position in messagepub.
 
 <pre>
-Recipients = [messagepub:email_recipient("joe@gmail.com"), messagepub:sms_recipient("123456789")].
+Recipients = [messagepub:email_recipient("joe@example.com"), messagepub:sms_recipient("123456789")].
 </pre>
 
 Available helpers for building recipients are `twitter_recipient/1, gchat_recipient/1, aim_recipient/1, email_recipient/1, sms_recipient/1, phone_recipient/1`.
