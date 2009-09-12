@@ -12,7 +12,7 @@
 -define(UA, "erlang-messagepub").
 -define(BASE_URL, "http://messagepub.com/").
 
--export([create/1, view/0, get_notification/1, cancel/1, replies/0]).
+-export([send/3, create/1, view/0, get_notification/1, cancel/1, replies/0]).
 -export([start_link/1, stop/0]).
 -export([new_notification/2, new_notification/3, make_recipient/2]).
 -export([twitter_recipient/1, gchat_recipient/1, aim_recipient/1, email_recipient/1, sms_recipient/1, phone_recipient/1]).
@@ -47,6 +47,11 @@ sms_recipient(MobileNumber) ->
 
 phone_recipient(PhoneNumber) ->
     make_recipient("phone", PhoneNumber).
+
+%% Adding a send to match old api usage, for backwards compat
+%% messagepub:send("email","joe@example.com", "hello joe").
+send(Channel, Address, Message) ->
+    create(new_notification(Message,  [make_recipient(Channel, Address)])).
 
 create(Notification) ->
     gen_server:call(?MODULE, {create, Notification}, 10000).
@@ -120,9 +125,9 @@ http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey) ->
 http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey, Params) ->
     Reply = case http:request(Method, request(Url, ApiKey, Params), [], []) of
         {error, Reason} ->
-		    {error, Reason};
+                    {error, Reason};
         {ok, {{_HttpVer, Code, Msg}, _Headers, Body}} ->
-		    extract_response(Prefer, {Code, Msg, Body}, OkCode)
+                    extract_response(Prefer, {Code, Msg, Body}, OkCode)
     end,
     {reply, Reply, ApiKey}.
 
