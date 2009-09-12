@@ -49,7 +49,6 @@ phone_recipient(PhoneNumber) ->
     make_recipient("phone", PhoneNumber).
 
 %% Adding a send to match old api usage, for backwards compat
-%% messagepub:send("email","joe@example.com", "hello joe").
 send(Channel, Address, Message) ->
     create(new_notification(Message,  [make_recipient(Channel, Address)])).
 
