@@ -4,7 +4,7 @@
 %% to be explicity set
 
 -module(messagepub).
--author("luc.castera@gmail.com").  %%how to handle proper in forked code?
+-author("luc.castera@gmail.com").
 -behaviour(gen_server).
 
 -include("messagepub.hrl").
@@ -26,6 +26,8 @@ new_notification(Body, Recipients) ->
 new_notification(Body, Escalation, Recipients) ->
     #notification{body=Body, escalation=Escalation, recipients=Recipients}.
 
+%% Helpers for recipient formatting.  A caller can just call make_recipient and provide channel
+%% if they like.  Not totally sold on using records for recipients, vs. plain old tuples.
 make_recipient(Channel, Address) ->
     #recipient{channel=Channel, address=Address}.
 
@@ -52,23 +54,28 @@ phone_recipient(PhoneNumber) ->
 send(Channel, Address, Message) ->
     create(new_notification(Message,  [make_recipient(Channel, Address)])).
 
+%% Create a new notification!
 create(Notification) ->
     gen_server:call(?MODULE, {create, Notification}, 10000).
 
+%% Grab xml for all notifications
 view() ->
     gen_server:call(?MODULE, view, 10000).
 
+%% Grab xml for a specific notification.  Will take numeric or string.
 %% I wonder if this is too defensive?
 get_notification(NotificationId) when is_number(NotificationId) ->
     get_notification(integer_to_list(NotificationId));
 get_notification(NotificationId) ->
     gen_server:call(?MODULE, {get, NotificationId}, 10000).
 
+%% Cancel pending channel recipients for a notification.
 cancel(NotificationId) when is_number(NotificationId) ->
     cancel(integer_to_list(NotificationId));
 cancel(NotificationId) ->
     gen_server:call(?MODULE, {cancel, NotificationId}, 10000).
 
+%% Grab xml for all replies
 replies() ->
     gen_server:call(?MODULE, replies, 10000).
 
@@ -85,6 +92,8 @@ init(ApiKey) ->
     inets:start(),
     {ok, ApiKey}.
 
+%% Format a recipient into the xml block expected by messagepub.  Use recursion
+%% to build a list of incrementing positions
 format_recipients(Recipients) ->
     format_recipients(Recipients, [], 1).
 format_recipients([], XmlRecipients, _Position) ->
@@ -95,11 +104,15 @@ format_recipients([Recipient|Rest], XmlRecipients, Position) ->
         "<address>" ++ Recipient#recipient.address ++ "</address></recipient>",
     format_recipients(Rest, XmlRecipients ++ XmlRecipient, Position + 1).
 
+%% remove newlines from a list
+strip_newlines(Text) ->
+    re:replace(Text, "\n", "", [global, {return, list}]).
+
 %% Prefer is used to force extraction of info from Body rather than Msg
 extract_response(Prefer, {Code, Msg, Body}, OkCode) when Prefer == body; Prefer == msg ->
     MoreInfo = case {Prefer, Code} of
                    {msg, OkCode} -> Msg;
-                   {_, _}  -> Body
+                   {_, _}  -> strip_newlines(Body)
                end,
     Status = case Code of
                  OkCode -> ok;
@@ -110,6 +123,7 @@ extract_response(Prefer, {Code, Msg, Body}, OkCode) when Prefer == body; Prefer 
 basic_auth_string(ApiKey) ->
     "Basic " ++ base64:encode_to_string(ApiKey ++ ":").
 
+%% Generate the request tuple for the web service
 request(Url, ApiKey, Params) ->
     {RequestUrl, RequestHeaders} = {Url, [{"User-Agent", ?UA}, {"Content-Type", "text/xml"}, {"Authorization", basic_auth_string(ApiKey)}]},
     case length(Params) of
@@ -119,6 +133,7 @@ request(Url, ApiKey, Params) ->
             {RequestUrl, RequestHeaders, "text/xml", Params}
     end.
 
+%% Talk to the web service!
 http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey) ->
     http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey, []).
 http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey, Params) ->
@@ -130,6 +145,8 @@ http_request_and_reply(Method, Url, {OkCode, Prefer}, ApiKey, Params) ->
     end,
     {reply, Reply, ApiKey}.
 
+%% OTP message callbacks...
+%% creating a notification
 handle_call({create, Notification}, _From, ApiKey) ->
     Url = ?BASE_URL ++ "notifications.xml",
     XmlRecipients = format_recipients(Notification#notification.recipients),
@@ -138,26 +155,32 @@ handle_call({create, Notification}, _From, ApiKey) ->
         XmlRecipients ++ "</notification>",
     http_request_and_reply(post, Url, {201, msg}, ApiKey, BodyXML);
 
+%% Viewing notifications
 handle_call(view, _From, ApiKey) ->
     Url = ?BASE_URL ++ "notifications.xml",
     http_request_and_reply(get, Url, {200, body}, ApiKey);
 
+%% Get a specific notification
 handle_call({get, NotificationId}, _From, ApiKey) ->
     Url = ?BASE_URL ++ "notifications/" ++ NotificationId ++ ".xml",
     http_request_and_reply(get, Url, {200, body}, ApiKey);
 
+%% Cancel a notification
 handle_call({cancel, NotificationId}, _From, ApiKey) ->
     Url = ?BASE_URL ++ "notifications/" ++ NotificationId ++ ".xml",
     http_request_and_reply(delete, Url, {200, msg}, ApiKey);
 
+%% Fetch all replies
 handle_call(replies, _From, ApiKey) ->
     Url = ?BASE_URL ++ "replies.xml",
     http_request_and_reply(get, Url, {200, body}, ApiKey);
 
+%% Catch unknown messages
 handle_call(Request, _From, State) ->
   io:format("Call received: ~p~n", [Request]),
   {reply, ignored, State}.
 
+%% Boilerplate OTP stuff...
 handle_cast(stop, State) ->
   {stop, normal, State};
 handle_cast(_Msg, State) ->
